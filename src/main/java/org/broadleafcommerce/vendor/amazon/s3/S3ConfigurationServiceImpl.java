@@ -20,6 +20,8 @@
 package org.broadleafcommerce.vendor.amazon.s3;
 
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.broadleafcommerce.common.config.service.SystemPropertiesService;
 import org.springframework.stereotype.Service;
 
@@ -29,64 +31,71 @@ import com.amazonaws.regions.RegionUtils;
 import javax.annotation.Resource;
 
 /**
- * Service that returns the an S3 configuration object.   Returns a configuration object with values
- * that are defined as system properties.
+ * Service that returns the an S3 configuration object. Returns a configuration
+ * object with values that are defined as system properties.
  * 
  * @author bpolster
  *
  */
 @Service("blS3ConfigurationService")
 public class S3ConfigurationServiceImpl implements S3ConfigurationService {
+	protected static final Log LOG = LogFactory.getLog(S3ConfigurationServiceImpl.class);
 
-    @Resource(name = "blSystemPropertiesService")
-    protected SystemPropertiesService systemPropertiesService;
-    
-    @Override
-    public S3Configuration lookupS3Configuration() {
-        S3Configuration s3config = new S3Configuration();
-        s3config.setAwsSecretKey(lookupProperty("aws.s3.secretKey"));
-        s3config.setDefaultBucketName(lookupProperty("aws.s3.defaultBucketName"));
-        s3config.setDefaultBucketRegion(lookupProperty("aws.s3.defaultBucketRegion"));
-        s3config.setGetAWSAccessKeyId(lookupProperty("aws.s3.accessKeyId"));
-        s3config.setEndpointURI(lookupProperty("aws.s3.endpointURI"));
-        s3config.setBucketSubDirectory(lookupProperty("aws.s3.bucketSubDirectory"));
+	@Resource(name = "blSystemPropertiesService")
+	protected SystemPropertiesService systemPropertiesService;
 
-        boolean accessSecretKeyBlank = StringUtils.isEmpty(s3config.getAwsSecretKey());
-        boolean accessKeyIdBlank = StringUtils.isEmpty(s3config.getGetAWSAccessKeyId());
-        boolean bucketNameBlank = StringUtils.isEmpty(s3config.getDefaultBucketName());
-        Region region = RegionUtils.getRegion(s3config.getDefaultBucketRegion());
-        
-        if (region == null || accessSecretKeyBlank || accessKeyIdBlank || bucketNameBlank) {
-            StringBuilder errorMessage = new StringBuilder("Amazon S3 Configuration Error : ");
+	@Override
+	public S3Configuration lookupS3Configuration() {
+		S3Configuration s3config = new S3Configuration();
+		s3config.setAwsSecretKey(lookupProperty("aws.s3.secretKey"));
+		s3config.setDefaultBucketName(lookupProperty("aws.s3.defaultBucketName"));
+		s3config.setDefaultBucketRegion(lookupProperty("aws.s3.defaultBucketRegion"));
+		s3config.setGetAWSAccessKeyId(lookupProperty("aws.s3.accessKeyId"));
+		s3config.setEndpointURI(lookupProperty("aws.s3.endpointURI"));
+		s3config.setBucketSubDirectory(lookupProperty("aws.s3.bucketSubDirectory"));
 
-            if (accessSecretKeyBlank) {
-                errorMessage.append("aws.s3.secretKey was blank,");
-            }
+		boolean accessSecretKeyBlank = StringUtils.isEmpty(s3config.getAwsSecretKey());
+		boolean accessKeyIdBlank = StringUtils.isEmpty(s3config.getGetAWSAccessKeyId());
+		boolean bucketNameBlank = StringUtils.isEmpty(s3config.getDefaultBucketName());
+		Region region = RegionUtils.getRegion(s3config.getDefaultBucketRegion());
 
-            if (accessKeyIdBlank) {
-                errorMessage.append("aws.s3.accessKeyId was blank,");
-            }
+		if (LOG.isTraceEnabled()) {
+			final String msg = String.format("%s - using s3://%s/%s in region %s", s3config.getEndpointURI(),
+					s3config.getDefaultBucketName(), s3config.getBucketSubDirectory(), region.toString());
+			LOG.trace(msg);
+		}
 
-            if (bucketNameBlank) {
-                errorMessage.append("aws.s3.defaultBucketName was blank,");
-            }
+		if (region == null || accessSecretKeyBlank || accessKeyIdBlank || bucketNameBlank) {
+			StringBuilder errorMessage = new StringBuilder("Amazon S3 Configuration Error : ");
 
-            if (region == null) {
-                errorMessage.append("aws.s3.defaultBucketRegion was set to an invalid value of "
-                        + s3config.getDefaultBucketRegion());
-            }
-            throw new IllegalArgumentException(errorMessage.toString());
-        }
+			if (accessSecretKeyBlank) {
+				errorMessage.append("aws.s3.secretKey was blank,");
+			}
 
-        return s3config;
-    }
+			if (accessKeyIdBlank) {
+				errorMessage.append("aws.s3.accessKeyId was blank,");
+			}
 
-    protected String lookupProperty(String propertyName) {
-        return systemPropertiesService.resolveSystemProperty(propertyName);
-    }
+			if (bucketNameBlank) {
+				errorMessage.append("aws.s3.defaultBucketName was blank,");
+			}
 
-    protected void setSystemPropertiesService(SystemPropertiesService systemPropertiesService) {
-        this.systemPropertiesService = systemPropertiesService;
-    }
+			if (region == null) {
+				errorMessage.append("aws.s3.defaultBucketRegion was set to an invalid value of "
+						+ s3config.getDefaultBucketRegion());
+			}
+			throw new IllegalArgumentException(errorMessage.toString());
+		}
+
+		return s3config;
+	}
+
+	protected String lookupProperty(String propertyName) {
+		return systemPropertiesService.resolveSystemProperty(propertyName);
+	}
+
+	protected void setSystemPropertiesService(SystemPropertiesService systemPropertiesService) {
+		this.systemPropertiesService = systemPropertiesService;
+	}
 
 }

@@ -22,6 +22,8 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <blc.version>5.0.3-GA</blc.version>
         <project.uri>${user.dir}</project.uri>
+
+        <aws-sdk.version>1.11.32</aws-sdk.version>
     </properties>
     <scm>
         <connection>scm:git:git@github.com:BroadleafCommerce/blc-amazon.git</connection>
@@ -151,9 +153,7 @@
         <dependency>
             <groupId>com.amazonaws</groupId>
             <artifactId>aws-java-sdk</artifactId>
-
-            <!-- This version is compatible with httpclient, which has a goole SSL SAN issue -->
-            <version>1.10.76</version>
+            <version>${aws-sdk.version}</version>
         </dependency>
         <dependency>
             <groupId>org.broadleafcommerce</groupId>

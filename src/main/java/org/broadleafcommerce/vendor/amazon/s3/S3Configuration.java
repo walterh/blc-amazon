@@ -67,6 +67,8 @@ public class S3Configuration {
 
     public void setDefaultBucketRegion(String defaultBucketRegion) {
         this.defaultBucketRegion = defaultBucketRegion;
+        
+        fixupRegionForSignatureVersion4();
     }
         
     public String getEndpointURI() {
@@ -75,6 +77,8 @@ public class S3Configuration {
 
     public void setEndpointURI(String endpointURI) {
         this.endpointURI = endpointURI;
+        
+        fixupRegionForSignatureVersion4();
     }
 
     public String getBucketSubDirectory() {
@@ -113,4 +117,20 @@ public class S3Configuration {
         return false;
     }
 
+    // http://docs.aws.amazon.com/AmazonS3/latest/API/RESTBucketPUT.html
+    // http://docs.aws.amazon.com/AmazonS3/latest/dev/UsingBucket.html#access-bucket-intro
+    private void fixupRegionForSignatureVersion4() {
+    	// "s3.amazonaws.com" is default US East region, which is no longer compatible with v4 API
+    	if (endpointURI != null && endpointURI.endsWith("s3.amazonaws.com")) {
+    		if (defaultBucketRegion != null) {
+    			// insert this in like http://s3-aws-region.amazonaws.com to make it v4 compliant
+    			final int loc = endpointURI.lastIndexOf(".amazonaws.com");
+    			
+    			if (loc > 0) {
+    				// add the extra dot to make it more clear. Account for it with a +1 index
+    				endpointURI = String.format("%s-%s.%s", endpointURI.substring(0, loc), defaultBucketRegion, endpointURI.substring(loc + 1));
+    			}
+    		}
+    	}
+    }    
 }
