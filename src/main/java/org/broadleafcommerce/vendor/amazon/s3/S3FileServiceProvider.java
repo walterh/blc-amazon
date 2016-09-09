@@ -83,9 +83,9 @@ public class S3FileServiceProvider implements FileServiceProvider {
 
     @Override
     public File getResource(String name, FileApplicationType fileApplicationType) {
-    	final String resourceName = buildResourceName(name);
-        final File returnFile = blFileService.getLocalResource(resourceName);
         final S3Configuration s3config = s3ConfigurationService.lookupS3Configuration();
+    	final String resourceName = buildResourceName(s3config, name);
+        final File returnFile = blFileService.getLocalResource(resourceName);
     	final String s3Uri = String.format("s3://%s/%s", s3config.getDefaultBucketName(), resourceName);
         
         OutputStream outputStream = null;
@@ -93,10 +93,10 @@ public class S3FileServiceProvider implements FileServiceProvider {
 
         try {
             final AmazonS3Client s3 = getAmazonS3Client(s3config);
-            final S3Object object = s3.getObject(new GetObjectRequest(s3config.getDefaultBucketName(), buildResourceName(name)));
+            final S3Object object = s3.getObject(new GetObjectRequest(s3config.getDefaultBucketName(), buildResourceName(s3config, name)));
             
             if (LOG.isTraceEnabled()) {
-            	LOG.trace("retrieving" + s3Uri);
+            	LOG.trace("retrieving " + s3Uri);
             }
             inputStream = object.getObjectContent();
 
@@ -118,10 +118,11 @@ public class S3FileServiceProvider implements FileServiceProvider {
         } catch (IOException ioe) {
             throw new RuntimeException(String.format("Error writing %s to local file system at %s", s3Uri, returnFile.getAbsolutePath()), ioe);
         } catch (AmazonS3Exception s3Exception) {
-        	LOG.error(String.format("%s for %s", s3Exception.getErrorCode(), s3Uri));
+        	LOG.error(String.format("%s for %s; name = %s, resourceName = %s, returnFile = %s", s3Exception.getErrorCode(), s3Uri, name, resourceName, returnFile.getAbsolutePath()));
 
         	if ("NoSuchKey".equals(s3Exception.getErrorCode())) {
-            	return new File("this/path/should/not/exist/" + UUID.randomUUID());
+            	//return new File("this/path/should/not/exist/" + UUID.randomUUID());
+        		return null;
             } else {
                 throw s3Exception;
             }
@@ -180,7 +181,7 @@ public class S3FileServiceProvider implements FileServiceProvider {
             }
 
             String fileName = srcFile.getAbsolutePath().substring(workArea.getFilePathLocation().length());
-            String resourceName = buildResourceName(fileName);
+            String resourceName = buildResourceName(s3config, fileName);
             s3.putObject(new PutObjectRequest(s3config.getDefaultBucketName(), resourceName, srcFile));
             resourcePaths.add(fileName);
             
@@ -200,7 +201,7 @@ public class S3FileServiceProvider implements FileServiceProvider {
     public boolean removeResource(String name) {
         final S3Configuration s3config = s3ConfigurationService.lookupS3Configuration();
         final AmazonS3Client s3 = getAmazonS3Client(s3config);
-        final String resourceName = buildResourceName(name);
+        final String resourceName = buildResourceName(s3config, name);
 
         s3.deleteObject(s3config.getDefaultBucketName(), resourceName);
 
@@ -224,14 +225,14 @@ public class S3FileServiceProvider implements FileServiceProvider {
      * @param name
      * @return
      */
-    protected String buildResourceName(String name) {
+    protected String buildResourceName(S3Configuration s3config, String name) {
         // Strip the starting slash to prevent empty directories in S3 as well as required references by // in the
         // public S3 URL
         if (name.startsWith("/")) {
             name = name.substring(1);
         }
 
-        String baseDirectory = s3ConfigurationService.lookupS3Configuration().getBucketSubDirectory();
+        String baseDirectory = s3config.getBucketSubDirectory();
         if (StringUtils.isNotEmpty(baseDirectory)) {
             if (baseDirectory.startsWith("/")) {
                 baseDirectory = baseDirectory.substring(1);
