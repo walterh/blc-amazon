@@ -19,6 +19,8 @@
  */
 package org.broadleafcommerce.vendor.amazon.s3;
 
+import java.util.regex.Pattern;
+
 import org.apache.commons.lang3.builder.EqualsBuilder;
 import org.apache.commons.lang3.builder.HashCodeBuilder;
 
@@ -36,6 +38,7 @@ public class S3Configuration {
     private String defaultBucketRegion;
     private String endpointURI;
     private String bucketSubDirectory;
+    private Pattern staticAssetFileExtensionPattern;
 
     public String getAwsSecretKey() {
         return awsSecretKey;
@@ -88,6 +91,15 @@ public class S3Configuration {
     public void setBucketSubDirectory(String bucketSubDirectory) {
         this.bucketSubDirectory = bucketSubDirectory;
     }
+    
+    public Pattern getStaticAssetFileExtensionPattern() {
+    	return staticAssetFileExtensionPattern;
+    }
+    
+    public void setStaticAssetFileExtensionPattern(String staticAssetFileExtensionPatternStr) {
+    	this.staticAssetFileExtensionPattern = Pattern.compile(staticAssetFileExtensionPatternStr);
+    }
+    
 
     @Override
     public int hashCode() {

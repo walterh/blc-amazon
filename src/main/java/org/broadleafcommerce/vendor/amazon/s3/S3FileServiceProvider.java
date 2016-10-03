@@ -37,6 +37,7 @@ import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.regions.RegionUtils;
 import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.model.AmazonS3Exception;
+import com.amazonaws.services.s3.model.CannedAccessControlList;
 import com.amazonaws.services.s3.model.GetObjectRequest;
 import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.amazonaws.services.s3.model.S3Object;
@@ -173,16 +174,24 @@ public class S3FileServiceProvider implements FileServiceProvider {
     }
     
     protected List<String> addOrUpdateResourcesInternal(S3Configuration s3config, AmazonS3Client s3, FileWorkArea workArea, List<File> files, boolean removeFilesFromWorkArea) {
-        List<String> resourcePaths = new ArrayList<String>();
-        for (File srcFile : files) {
+        final List<String> resourcePaths = new ArrayList<String>();
+        for (final File srcFile : files) {
             if (!srcFile.getAbsolutePath().startsWith(workArea.getFilePathLocation())) {
                 throw new FileServiceException("Attempt to update file " + srcFile.getAbsolutePath() +
                         " that is not in the passed in WorkArea " + workArea.getFilePathLocation());
             }
 
-            String fileName = srcFile.getAbsolutePath().substring(workArea.getFilePathLocation().length());
-            String resourceName = buildResourceName(s3config, fileName);
-            s3.putObject(new PutObjectRequest(s3config.getDefaultBucketName(), resourceName, srcFile));
+            final String fileName = srcFile.getAbsolutePath().substring(workArea.getFilePathLocation().length());
+            final String resourceName = buildResourceName(s3config, fileName);
+            final PutObjectRequest put = new PutObjectRequest(s3config.getDefaultBucketName(), resourceName, srcFile);
+            
+            if ((s3config.getStaticAssetFileExtensionPattern() != null) && s3config.getStaticAssetFileExtensionPattern().matcher(getExtension(fileName)).matches()) {
+            	put.setCannedAcl(CannedAccessControlList.PublicRead);
+            }
+            
+            s3.putObject(put);
+            
+
             resourcePaths.add(fileName);
             
             if (LOG.isTraceEnabled()) {
@@ -225,7 +234,7 @@ public class S3FileServiceProvider implements FileServiceProvider {
      * @param name
      * @return
      */
-    protected String buildResourceName(S3Configuration s3config, String name) {
+    public String buildResourceName(S3Configuration s3config, String name) {
         // Strip the starting slash to prevent empty directories in S3 as well as required references by // in the
         // public S3 URL
         if (name.startsWith("/")) {
@@ -306,6 +315,21 @@ public class S3FileServiceProvider implements FileServiceProvider {
 
     public void setBroadleafFileService(BroadleafFileService bfs) {
         this.blFileService = bfs;
+    }
+
+    private String getExtension(String fileName) {
+        int lastExtension = lastExtensionIdx(fileName);
+        String ext = null;
+
+        if (lastExtension != -1) {
+            ext = fileName.substring(lastExtension + 1).toLowerCase();
+        }
+
+        return ext;
+    }
+
+    private Integer lastExtensionIdx(String fileName) {
+        return (fileName != null) ? fileName.lastIndexOf('.') : -1;
     }
 
 }

@@ -27,6 +27,7 @@ import org.springframework.stereotype.Service;
 
 import com.amazonaws.regions.Region;
 import com.amazonaws.regions.RegionUtils;
+import com.google.common.base.Strings;
 
 import javax.annotation.Resource;
 
@@ -54,10 +55,16 @@ public class S3ConfigurationServiceImpl implements S3ConfigurationService {
 		s3config.setEndpointURI(lookupProperty("aws.s3.endpointURI"));
 		s3config.setBucketSubDirectory(lookupProperty("aws.s3.bucketSubDirectory"));
 
-		boolean accessSecretKeyBlank = StringUtils.isEmpty(s3config.getAwsSecretKey());
-		boolean accessKeyIdBlank = StringUtils.isEmpty(s3config.getGetAWSAccessKeyId());
-		boolean bucketNameBlank = StringUtils.isEmpty(s3config.getDefaultBucketName());
-		Region region = RegionUtils.getRegion(s3config.getDefaultBucketRegion());
+		final String staticAssetFileExtensionPatternStr = lookupProperty("aws.s3.staticAssetFileExtensionPattern");
+		if (!Strings.isNullOrEmpty(staticAssetFileExtensionPatternStr)) {
+			s3config.setStaticAssetFileExtensionPattern(staticAssetFileExtensionPatternStr);
+		}
+
+		final boolean accessSecretKeyBlank = StringUtils.isEmpty(s3config.getAwsSecretKey());
+		final boolean accessKeyIdBlank = StringUtils.isEmpty(s3config.getGetAWSAccessKeyId());
+		final boolean bucketNameBlank = StringUtils.isEmpty(s3config.getDefaultBucketName());
+		final Region region = RegionUtils.getRegion(s3config.getDefaultBucketRegion());
+		
 
 		if (LOG.isTraceEnabled()) {
 			final String msg = String.format("%s - using s3://%s/%s in region %s", s3config.getEndpointURI(),
