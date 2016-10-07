@@ -161,7 +161,6 @@ public class S3FileServiceProvider implements FileServiceProvider {
     /**
      * Writes the resource to S3.   If the bucket returns as "NoSuchBucket" then will attempt to create the bucket
      * and try again.
-     * TODO: this function is called by BroadleafFileServiceImpl
      */
     @Override
     public List<String> addOrUpdateResourcesForPaths(FileWorkArea workArea, List<File> files, boolean removeFilesFromWorkArea) {
@@ -248,7 +247,7 @@ public class S3FileServiceProvider implements FileServiceProvider {
             objToUpload.setCannedAcl(CannedAccessControlList.PublicRead);
         }
 
-        s3.putObject(objToUpload); //TODO: handle exception
+        s3.putObject(objToUpload);
 
         if (LOG.isTraceEnabled()) {
             final String s3Uri = String.format("s3://%s/%s", s3config.getDefaultBucketName(), resourceName);
