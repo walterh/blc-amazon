@@ -39,6 +39,7 @@ import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.model.AmazonS3Exception;
 import com.amazonaws.services.s3.model.CannedAccessControlList;
 import com.amazonaws.services.s3.model.GetObjectRequest;
+import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.amazonaws.services.s3.model.S3Object;
 
@@ -67,14 +68,14 @@ import javax.annotation.Resource;
  *
  */
 public class S3FileServiceProvider implements FileServiceProvider {
-	protected static final Log LOG = LogFactory.getLog(S3FileServiceProvider.class);
-	
+    protected static final Log LOG = LogFactory.getLog(S3FileServiceProvider.class);
+
     @Resource(name = "blS3ConfigurationService")
     protected S3ConfigurationService s3ConfigurationService;
 
     @Resource(name = "blFileService")
     protected BroadleafFileService blFileService;
-    
+
     protected Map<S3Configuration, AmazonS3Client> configClientMap = new HashMap<S3Configuration, AmazonS3Client>();
 
     @Override
@@ -85,19 +86,19 @@ public class S3FileServiceProvider implements FileServiceProvider {
     @Override
     public File getResource(String name, FileApplicationType fileApplicationType) {
         final S3Configuration s3config = s3ConfigurationService.lookupS3Configuration();
-    	final String resourceName = buildResourceName(s3config, name);
+        final String resourceName = buildResourceName(s3config, name);
         final File returnFile = blFileService.getLocalResource(resourceName);
-    	final String s3Uri = String.format("s3://%s/%s", s3config.getDefaultBucketName(), resourceName);
-        
+        final String s3Uri = String.format("s3://%s/%s", s3config.getDefaultBucketName(), resourceName);
+
         OutputStream outputStream = null;
         InputStream inputStream = null;
 
         try {
             final AmazonS3Client s3 = getAmazonS3Client(s3config);
             final S3Object object = s3.getObject(new GetObjectRequest(s3config.getDefaultBucketName(), buildResourceName(s3config, name)));
-            
+
             if (LOG.isTraceEnabled()) {
-            	LOG.trace("retrieving " + s3Uri);
+                LOG.trace("retrieving " + s3Uri);
             }
             inputStream = object.getObjectContent();
 
@@ -119,11 +120,16 @@ public class S3FileServiceProvider implements FileServiceProvider {
         } catch (IOException ioe) {
             throw new RuntimeException(String.format("Error writing %s to local file system at %s", s3Uri, returnFile.getAbsolutePath()), ioe);
         } catch (AmazonS3Exception s3Exception) {
-        	LOG.error(String.format("%s for %s; name = %s, resourceName = %s, returnFile = %s", s3Exception.getErrorCode(), s3Uri, name, resourceName, returnFile.getAbsolutePath()));
+            LOG.error(String.format("%s for %s; name = %s, resourceName = %s, returnFile = %s",
+                    s3Exception.getErrorCode(),
+                    s3Uri,
+                    name,
+                    resourceName,
+                    returnFile.getAbsolutePath()));
 
-        	if ("NoSuchKey".equals(s3Exception.getErrorCode())) {
-            	//return new File("this/path/should/not/exist/" + UUID.randomUUID());
-        		return null;
+            if ("NoSuchKey".equals(s3Exception.getErrorCode())) {
+                //return new File("this/path/should/not/exist/" + UUID.randomUUID());
+                return null;
             } else {
                 throw s3Exception;
             }
@@ -151,7 +157,7 @@ public class S3FileServiceProvider implements FileServiceProvider {
     public void addOrUpdateResources(FileWorkArea workArea, List<File> files, boolean removeFilesFromWorkArea) {
         addOrUpdateResourcesForPaths(workArea, files, removeFilesFromWorkArea);
     }
-    
+
     /**
      * Writes the resource to S3.   If the bucket returns as "NoSuchBucket" then will attempt to create the bucket
      * and try again.
@@ -160,51 +166,96 @@ public class S3FileServiceProvider implements FileServiceProvider {
     public List<String> addOrUpdateResourcesForPaths(FileWorkArea workArea, List<File> files, boolean removeFilesFromWorkArea) {
         S3Configuration s3config = s3ConfigurationService.lookupS3Configuration();
         AmazonS3Client s3 = getAmazonS3Client(s3config);
-        
-        try {           
-            return addOrUpdateResourcesInternal(s3config, s3, workArea, files, removeFilesFromWorkArea);    
+
+        try {
+            return addOrUpdateResourcesInternal(s3config, s3, workArea, files, removeFilesFromWorkArea);
         } catch (AmazonServiceException ase) {
             if ("NoSuchBucket".equals(ase.getErrorCode())) {
                 s3.createBucket(s3config.getDefaultBucketName());
-                return addOrUpdateResourcesInternal(s3config, s3, workArea, files, removeFilesFromWorkArea);   
+                return addOrUpdateResourcesInternal(s3config, s3, workArea, files, removeFilesFromWorkArea);
             } else {
                 throw new RuntimeException(ase);
             }
         }
     }
-    
-    protected List<String> addOrUpdateResourcesInternal(S3Configuration s3config, AmazonS3Client s3, FileWorkArea workArea, List<File> files, boolean removeFilesFromWorkArea) {
+
+    protected List<String> addOrUpdateResourcesInternal(S3Configuration s3config,
+            AmazonS3Client s3,
+            FileWorkArea workArea,
+            List<File> files,
+            boolean removeFilesFromWorkArea) {
         final List<String> resourcePaths = new ArrayList<String>();
         for (final File srcFile : files) {
             if (!srcFile.getAbsolutePath().startsWith(workArea.getFilePathLocation())) {
-                throw new FileServiceException("Attempt to update file " + srcFile.getAbsolutePath() +
-                        " that is not in the passed in WorkArea " + workArea.getFilePathLocation());
+                throw new FileServiceException(
+                        "Attempt to update file " + srcFile.getAbsolutePath() + " that is not in the passed in WorkArea " + workArea.getFilePathLocation());
             }
 
             final String fileName = srcFile.getAbsolutePath().substring(workArea.getFilePathLocation().length());
             final String resourceName = buildResourceName(s3config, fileName);
             final PutObjectRequest put = new PutObjectRequest(s3config.getDefaultBucketName(), resourceName, srcFile);
-            
-            if ((s3config.getStaticAssetFileExtensionPattern() != null) && s3config.getStaticAssetFileExtensionPattern().matcher(getExtension(fileName)).matches()) {
-            	put.setCannedAcl(CannedAccessControlList.PublicRead);
+
+            if ((s3config.getStaticAssetFileExtensionPattern() != null)
+                    && s3config.getStaticAssetFileExtensionPattern().matcher(getExtension(fileName)).matches()) {
+                put.setCannedAcl(CannedAccessControlList.PublicRead);
             }
-            
+
             s3.putObject(put);
-            
 
             resourcePaths.add(fileName);
-            
+
             if (LOG.isTraceEnabled()) {
-            	final String s3Uri = String.format("s3://%s/%s", s3config.getDefaultBucketName(), resourceName);
-            	final String msg = String.format("%s copied/updated to %s", srcFile.getAbsolutePath(), s3Uri);
-            	
-            	LOG.trace(msg);
+                final String s3Uri = String.format("s3://%s/%s", s3config.getDefaultBucketName(), resourceName);
+                final String msg = String.format("%s copied/updated to %s", srcFile.getAbsolutePath(), s3Uri);
+
+                LOG.trace(msg);
             }
         }
         return resourcePaths;
-    }    
-    
-    
+    }
+
+    public void addOrUpdateResource(InputStream inputStream, String fileName, long fileSizeInBytes) {
+        S3Configuration s3config = s3ConfigurationService.lookupS3Configuration();
+        AmazonS3Client s3 = getAmazonS3Client(s3config);
+
+        try {
+            addOrUpdateResourcesInternalStreamVersion(s3config, s3, inputStream, fileName, fileSizeInBytes);
+        } catch (AmazonServiceException ase) {
+            if ("NoSuchBucket".equals(ase.getErrorCode())) {
+                s3.createBucket(s3config.getDefaultBucketName());
+                addOrUpdateResourcesInternalStreamVersion(s3config, s3, inputStream, fileName, fileSizeInBytes);
+            } else {
+                throw new RuntimeException(ase);
+            }
+        }
+    }
+
+    protected void addOrUpdateResourcesInternalStreamVersion(S3Configuration s3config,
+            AmazonS3Client s3,
+            InputStream inputStream,
+            String fileName,
+            long fileSizeInBytes) {
+        final String bucketName = s3config.getDefaultBucketName();
+
+        final ObjectMetadata metadata = new ObjectMetadata();
+        metadata.setContentLength(fileSizeInBytes);
+        final String resourceName = buildResourceName(s3config, fileName);
+        final PutObjectRequest objToUpload = new PutObjectRequest(bucketName, resourceName, inputStream, metadata);
+
+        if ((s3config.getStaticAssetFileExtensionPattern() != null)
+                && s3config.getStaticAssetFileExtensionPattern().matcher(getExtension(fileName)).matches()) {
+            objToUpload.setCannedAcl(CannedAccessControlList.PublicRead);
+        }
+
+        s3.putObject(objToUpload);
+
+        if (LOG.isTraceEnabled()) {
+            final String s3Uri = String.format("s3://%s/%s", s3config.getDefaultBucketName(), resourceName);
+            final String msg = String.format("%s copied/updated to %s", fileName, s3Uri);
+
+            LOG.trace(msg);
+        }
+    }
 
     @Override
     public boolean removeResource(String name) {
@@ -218,12 +269,12 @@ public class S3FileServiceProvider implements FileServiceProvider {
 
         if (returnFile != null) {
             returnFile.delete();
-            
+
             if (LOG.isTraceEnabled()) {
-            	final String s3Uri = String.format("s3://%s/%s", s3config.getDefaultBucketName(), resourceName);
-            	
-            	LOG.trace("deleted " + s3Uri);
-            	LOG.trace("deleted " + returnFile.getAbsolutePath());
+                final String s3Uri = String.format("s3://%s/%s", s3config.getDefaultBucketName(), resourceName);
+
+                LOG.trace("deleted " + s3Uri);
+                LOG.trace("deleted " + returnFile.getAbsolutePath());
             }
         }
         return true;
@@ -250,11 +301,11 @@ public class S3FileServiceProvider implements FileServiceProvider {
             // ensure subDirectory is non-null
             baseDirectory = "";
         }
-        
+
         String siteSpecificResourceName = getSiteSpecificResourceName(name);
         return FilenameUtils.concat(baseDirectory, siteSpecificResourceName);
     }
-    
+
     protected String getSiteSpecificResourceName(String resourceName) {
         BroadleafRequestContext brc = BroadleafRequestContext.getBroadleafRequestContext();
         if (brc != null) {
@@ -275,18 +326,20 @@ public class S3FileServiceProvider implements FileServiceProvider {
         String siteDirectory = "site-" + site.getId();
         return siteDirectory;
     }
-    
+
     protected AmazonS3Client getAmazonS3Client(S3Configuration s3config) {
         AmazonS3Client client = configClientMap.get(s3config);
         if (client == null) {
             client = new AmazonS3Client(getAWSCredentials(s3config));
             client.setRegion(RegionUtils.getRegion(s3config.getDefaultBucketRegion()));
-            
+
             if (LOG.isTraceEnabled()) {
-            	final String msg = String.format("defaultBucketRegion=%s corresponds to region=%s", s3config.getDefaultBucketRegion(), client.getRegion().toString());
-            	LOG.trace(msg);
+                final String msg = String.format("defaultBucketRegion=%s corresponds to region=%s",
+                        s3config.getDefaultBucketRegion(),
+                        client.getRegion().toString());
+                LOG.trace(msg);
             }
-            
+
             if (s3config.getEndpointURI() != null) {
                 client.setEndpoint(s3config.getEndpointURI());
             }
@@ -295,12 +348,11 @@ public class S3FileServiceProvider implements FileServiceProvider {
         return client;
     }
 
-
     protected AWSCredentials getAWSCredentials(final S3Configuration s3configParam) {
         return new AWSCredentials() {
 
             private final S3Configuration s3ConfigVar = s3configParam;
-            
+
             @Override
             public String getAWSSecretKey() {
                 return s3ConfigVar.getAwsSecretKey();
