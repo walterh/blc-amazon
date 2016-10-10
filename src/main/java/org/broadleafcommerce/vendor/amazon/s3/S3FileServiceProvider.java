@@ -38,6 +38,7 @@ import com.amazonaws.regions.RegionUtils;
 import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.model.AmazonS3Exception;
 import com.amazonaws.services.s3.model.CannedAccessControlList;
+import com.amazonaws.services.s3.model.GetObjectMetadataRequest;
 import com.amazonaws.services.s3.model.GetObjectRequest;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.PutObjectRequest;
@@ -190,26 +191,55 @@ public class S3FileServiceProvider implements FileServiceProvider {
                 throw new FileServiceException(
                         "Attempt to update file " + srcFile.getAbsolutePath() + " that is not in the passed in WorkArea " + workArea.getFilePathLocation());
             }
-
+            final long ts1 = System.currentTimeMillis();
             final String fileName = srcFile.getAbsolutePath().substring(workArea.getFilePathLocation().length());
             final String resourceName = buildResourceName(s3config, fileName);
-            final PutObjectRequest put = new PutObjectRequest(s3config.getDefaultBucketName(), resourceName, srcFile);
 
-            if ((s3config.getStaticAssetFileExtensionPattern() != null)
-                    && s3config.getStaticAssetFileExtensionPattern().matcher(getExtension(fileName)).matches()) {
-                put.setCannedAcl(CannedAccessControlList.PublicRead);
+            ObjectMetadata meta = null;
+            try {
+                final GetObjectMetadataRequest get = new GetObjectMetadataRequest(s3config.getDefaultBucketName(), resourceName);
+                meta = s3.getObjectMetadata(get);
+            } catch (AmazonS3Exception ex) {
+                meta = null;
             }
+            final long ts2 = System.currentTimeMillis();
 
-            s3.putObject(put);
+            if (meta == null || meta.getContentLength() != srcFile.length()) {
+                final PutObjectRequest put = new PutObjectRequest(s3config.getDefaultBucketName(), resourceName, srcFile);
+
+                if ((s3config.getStaticAssetFileExtensionPattern() != null)
+                        && s3config.getStaticAssetFileExtensionPattern().matcher(getExtension(fileName)).matches()) {
+                    put.setCannedAcl(CannedAccessControlList.PublicRead);
+                }
+
+                s3.putObject(put);
+                final long ts3 = System.currentTimeMillis();
+
+                if (LOG.isTraceEnabled()) {
+                    final String s3Uri = String.format("s3://%s/%s", s3config.getDefaultBucketName(), resourceName);
+                    final String msg = String.format("%s copied/updated to %s; queryTime = %dms; uploadTime = %dms; totalTime = %dms",
+                            srcFile.getAbsolutePath(),
+                            s3Uri,
+                            ts2 - ts1,
+                            ts3 - ts2,
+                            ts3 - ts1);
+
+                    LOG.trace(msg);
+                }
+            } else {
+                if (LOG.isTraceEnabled()) {
+                    final String s3Uri = String.format("s3://%s/%s", s3config.getDefaultBucketName(), resourceName);
+                    final String msg = String.format("%s already at %s with same filesize = %dbytes; queryTime = %dms",
+                            srcFile.getAbsolutePath(),
+                            s3Uri,
+                            srcFile.length(),
+                            ts2 - ts1);
+
+                    LOG.trace(msg);
+                }
+            }
 
             resourcePaths.add(fileName);
-
-            if (LOG.isTraceEnabled()) {
-                final String s3Uri = String.format("s3://%s/%s", s3config.getDefaultBucketName(), resourceName);
-                final String msg = String.format("%s copied/updated to %s", srcFile.getAbsolutePath(), s3Uri);
-
-                LOG.trace(msg);
-            }
         }
         return resourcePaths;
     }
@@ -331,14 +361,7 @@ public class S3FileServiceProvider implements FileServiceProvider {
         AmazonS3Client client = configClientMap.get(s3config);
         if (client == null) {
             client = new AmazonS3Client(getAWSCredentials(s3config));
-            client.setRegion(RegionUtils.getRegion(s3config.getDefaultBucketRegion()));
-
-            if (LOG.isTraceEnabled()) {
-                final String msg = String.format("defaultBucketRegion=%s corresponds to region=%s",
-                        s3config.getDefaultBucketRegion(),
-                        client.getRegion().toString());
-                LOG.trace(msg);
-            }
+            client.setRegion(s3config.getDefaultBucketRegion());
 
             if (s3config.getEndpointURI() != null) {
                 client.setEndpoint(s3config.getEndpointURI());

@@ -24,6 +24,8 @@ import java.util.regex.Pattern;
 import org.apache.commons.lang3.builder.EqualsBuilder;
 import org.apache.commons.lang3.builder.HashCodeBuilder;
 
+import com.amazonaws.regions.Region;
+
 /**
  * Class that holds the configuration for connecting to AmazonS3.
  * 
@@ -35,7 +37,7 @@ public class S3Configuration {
     private String awsSecretKey;
     private String getAWSAccessKeyId;
     private String defaultBucketName;
-    private String defaultBucketRegion;
+    private Region defaultBucketRegion;
     private String endpointURI;
     private String bucketSubDirectory;
     private Pattern staticAssetFileExtensionPattern;
@@ -64,11 +66,11 @@ public class S3Configuration {
         this.defaultBucketName = defaultBucketName;
     }
 
-    public String getDefaultBucketRegion() {
+    public Region getDefaultBucketRegion() {
         return defaultBucketRegion;
     }
 
-    public void setDefaultBucketRegion(String defaultBucketRegion) {
+    public void setDefaultBucketRegion(Region defaultBucketRegion) {
         this.defaultBucketRegion = defaultBucketRegion;
         
         fixupRegionForSignatureVersion4();

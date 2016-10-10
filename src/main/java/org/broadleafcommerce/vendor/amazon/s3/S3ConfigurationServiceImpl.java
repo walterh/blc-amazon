@@ -29,6 +29,7 @@ import com.amazonaws.regions.Region;
 import com.amazonaws.regions.RegionUtils;
 import com.google.common.base.Strings;
 
+import javax.annotation.PostConstruct;
 import javax.annotation.Resource;
 
 /**
@@ -45,12 +46,14 @@ public class S3ConfigurationServiceImpl implements S3ConfigurationService {
 	@Resource(name = "blSystemPropertiesService")
 	protected SystemPropertiesService systemPropertiesService;
 
-	@Override
-	public S3Configuration lookupS3Configuration() {
-		S3Configuration s3config = new S3Configuration();
+	protected S3Configuration s3config;
+	
+	private void initS3ConfigurationImpl() {
+    	final long ts1 = System.currentTimeMillis();
+		s3config = new S3Configuration();
 		s3config.setAwsSecretKey(lookupProperty("aws.s3.secretKey"));
 		s3config.setDefaultBucketName(lookupProperty("aws.s3.defaultBucketName"));
-		s3config.setDefaultBucketRegion(lookupProperty("aws.s3.defaultBucketRegion"));
+		s3config.setDefaultBucketRegion(RegionUtils.getRegion(lookupProperty("aws.s3.defaultBucketRegion")));
 		s3config.setGetAWSAccessKeyId(lookupProperty("aws.s3.accessKeyId"));
 		s3config.setEndpointURI(lookupProperty("aws.s3.endpointURI"));
 		s3config.setBucketSubDirectory(lookupProperty("aws.s3.bucketSubDirectory"));
@@ -63,12 +66,12 @@ public class S3ConfigurationServiceImpl implements S3ConfigurationService {
 		final boolean accessSecretKeyBlank = StringUtils.isEmpty(s3config.getAwsSecretKey());
 		final boolean accessKeyIdBlank = StringUtils.isEmpty(s3config.getGetAWSAccessKeyId());
 		final boolean bucketNameBlank = StringUtils.isEmpty(s3config.getDefaultBucketName());
-		final Region region = RegionUtils.getRegion(s3config.getDefaultBucketRegion());
-		
-
+		final Region region = s3config.getDefaultBucketRegion();		
+        final long ts2 = System.currentTimeMillis();
+        
 		if (LOG.isTraceEnabled()) {
-			final String msg = String.format("%s - using s3://%s/%s in region %s", s3config.getEndpointURI(),
-					s3config.getDefaultBucketName(), s3config.getBucketSubDirectory(), region.toString());
+			final String msg = String.format("%s - using s3://%s/%s in region %s; setup time = %dms", s3config.getEndpointURI(),
+					s3config.getDefaultBucketName(), s3config.getBucketSubDirectory(), region.toString(), ts2 - ts1);
 			LOG.trace(msg);
 		}
 
@@ -93,7 +96,13 @@ public class S3ConfigurationServiceImpl implements S3ConfigurationService {
 			}
 			throw new IllegalArgumentException(errorMessage.toString());
 		}
+	}
 
+	@Override
+	public S3Configuration lookupS3Configuration() {
+		if (s3config == null) {
+			initS3ConfigurationImpl(); 
+		}
 		return s3config;
 	}
 
