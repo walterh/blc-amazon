@@ -408,7 +408,7 @@ public class S3FileServiceProvider implements FileServiceProvider {
         return (fileName != null) ? fileName.lastIndexOf('.') : -1;
     }
     
-    public void moveToProductionFolder(String srcKey, String destKey) {
+    public void moveObjects(String srcKey, String destKey) {
         S3Configuration s3config = s3ConfigurationService.lookupS3Configuration();
         AmazonS3Client s3Client = getAmazonS3Client(s3config);
         String bucketName = s3config.getDefaultBucketName();
