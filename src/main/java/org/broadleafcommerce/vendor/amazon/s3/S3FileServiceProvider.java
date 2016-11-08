@@ -19,6 +19,18 @@
  */
 package org.broadleafcommerce.vendor.amazon.s3;
 
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import javax.annotation.Resource;
+
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.logging.Log;
@@ -32,30 +44,25 @@ import org.broadleafcommerce.common.site.domain.Site;
 import org.broadleafcommerce.common.web.BroadleafRequestContext;
 import org.springframework.stereotype.Service;
 
+import com.amazonaws.AmazonClientException;
 import com.amazonaws.AmazonServiceException;
 import com.amazonaws.auth.AWSCredentials;
-import com.amazonaws.regions.RegionUtils;
 import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.model.AmazonS3Exception;
 import com.amazonaws.services.s3.model.CannedAccessControlList;
+import com.amazonaws.services.s3.model.CopyObjectRequest;
+import com.amazonaws.services.s3.model.DeleteObjectRequest;
+import com.amazonaws.services.s3.model.DeleteObjectsRequest;
+import com.amazonaws.services.s3.model.DeleteObjectsRequest.KeyVersion;
+import com.amazonaws.services.s3.model.DeleteObjectsResult;
+import com.amazonaws.services.s3.model.DeleteObjectsResult.DeletedObject;
 import com.amazonaws.services.s3.model.GetObjectMetadataRequest;
 import com.amazonaws.services.s3.model.GetObjectRequest;
+import com.amazonaws.services.s3.model.MultiObjectDeleteException;
+import com.amazonaws.services.s3.model.MultiObjectDeleteException.DeleteError;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.amazonaws.services.s3.model.S3Object;
-
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
-
-import javax.annotation.Resource;
 
 @Service("blS3FileServiceProvider")
 /**
@@ -406,5 +413,72 @@ public class S3FileServiceProvider implements FileServiceProvider {
     private Integer lastExtensionIdx(String fileName) {
         return (fileName != null) ? fileName.lastIndexOf('.') : -1;
     }
+    
+    public void moveObject(String srcKey, String destKey) {
+        S3Configuration s3config = s3ConfigurationService.lookupS3Configuration();
+        AmazonS3Client s3Client = getAmazonS3Client(s3config);
+        String bucketName = s3config.getDefaultBucketName();
+        // copy
+        CopyObjectRequest objToCopy = new CopyObjectRequest(bucketName, srcKey, bucketName, destKey);
+        if ((s3config.getStaticAssetFileExtensionPattern() != null)
+                && s3config.getStaticAssetFileExtensionPattern().matcher(getExtension(destKey)).matches()) {
+            objToCopy.setCannedAccessControlList(CannedAccessControlList.PublicRead);
+        }
+        try {
+        	s3Client.copyObject(objToCopy);
+        } catch (AmazonClientException e) {
+        	throw new RuntimeException("Unable to copy object from: " + srcKey + " to: " + destKey, e);
+        }
+        
+        // delete the old ones in sandbox folder (those with srcKey)
+        DeleteObjectRequest objToDelete = new DeleteObjectRequest(bucketName, srcKey);
+        try {
+        	s3Client.deleteObject(objToDelete);
+        } catch (AmazonClientException e) {
+        	throw new RuntimeException("Moving objects to production folder but unable to delete old object: " + srcKey, e);
+        }
+    }
+
+	public void deleteMultipleObjects(List<String> listOfKeysToRemove) {
+		if (listOfKeysToRemove == null || listOfKeysToRemove.isEmpty()) {
+			return;
+		}
+
+		S3Configuration s3config = s3ConfigurationService.lookupS3Configuration();
+		AmazonS3Client s3Client = getAmazonS3Client(s3config);
+		String bucketName = s3config.getDefaultBucketName();
+
+		DeleteObjectsRequest multiObjectDeleteRequest = new DeleteObjectsRequest(bucketName);
+
+		List<KeyVersion> keys = new ArrayList<KeyVersion>();
+
+		for (String targetKey : listOfKeysToRemove) {
+			keys.add(new KeyVersion(targetKey));
+		}
+
+		multiObjectDeleteRequest.setKeys(keys);
+
+		try {
+			DeleteObjectsResult delObjResult = s3Client.deleteObjects(multiObjectDeleteRequest);
+			if (LOG.isTraceEnabled()) {
+				LOG.trace(String.format("Successfully deleted all the %s items.\n",
+						delObjResult.getDeletedObjects().size()));
+			}
+		} catch (MultiObjectDeleteException e) {
+			if (LOG.isTraceEnabled()) {
+				LOG.trace(String.format("%s \n", e.getMessage()));
+				LOG.trace(String.format("No. of objects successfully deleted = %s\n", e.getDeletedObjects().size()));
+				LOG.trace(String.format("No. of objects failed to delete = %s\n", e.getErrors().size()));
+				LOG.trace(String.format("Printing error data...\n"));
+				for (DeleteError deleteError : e.getErrors()) {
+					if (LOG.isTraceEnabled()) {
+						LOG.trace(String.format("Object Key: %s\t%s\t%s\n", deleteError.getKey(), deleteError.getCode(),
+								deleteError.getMessage()));
+					}
+				}
+			}
+			throw new RuntimeException("No. of objects failed to delete = " + e.getErrors().size(), e);
+		}
+	}
 
 }
