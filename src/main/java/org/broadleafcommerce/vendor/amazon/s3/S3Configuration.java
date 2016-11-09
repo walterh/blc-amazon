@@ -103,13 +103,13 @@ public class S3Configuration {
     	this.staticAssetFileExtensionPattern = Pattern.compile(staticAssetFileExtensionPatternStr);
     }
     
-	public String getUploadedAssetStorageBucketSubDirectory() {
-		return uploadedAssetStorageBucketSubDirectory;
-	}
+    public String getUploadedAssetStorageBucketSubDirectory() {
+        return uploadedAssetStorageBucketSubDirectory;
+    }
 
-	public void setUploadedAssetStorageBucketSubDirectory(String uploadedAssetStorageBucketSubDirectory) {
-		this.uploadedAssetStorageBucketSubDirectory = uploadedAssetStorageBucketSubDirectory;
-	}
+    public void setUploadedAssetStorageBucketSubDirectory(String uploadedAssetStorageBucketSubDirectory) {
+        this.uploadedAssetStorageBucketSubDirectory = uploadedAssetStorageBucketSubDirectory;
+    }
 
     @Override
     public int hashCode() {
@@ -155,5 +155,4 @@ public class S3Configuration {
     		}
     	}
     }
-    
 }
