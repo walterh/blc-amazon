@@ -103,7 +103,7 @@ public class S3Configuration {
     	this.staticAssetFileExtensionPattern = Pattern.compile(staticAssetFileExtensionPatternStr);
     }
     
-    public String getUploadedAssetStorageBucketSubDirectory() {
+	public String getUploadedAssetStorageBucketSubDirectory() {
 		return uploadedAssetStorageBucketSubDirectory;
 	}
 
