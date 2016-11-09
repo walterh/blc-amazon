@@ -57,7 +57,11 @@ public class S3ConfigurationServiceImpl implements S3ConfigurationService {
 		s3config.setGetAWSAccessKeyId(lookupProperty("aws.s3.accessKeyId"));
 		s3config.setEndpointURI(lookupProperty("aws.s3.endpointURI"));
 		s3config.setBucketSubDirectory(lookupProperty("aws.s3.bucketSubDirectory"));
-		s3config.setUploadedAssetStorageBucketSubDirectory("aws.s3.uploadedAssetStorageBucketSubDirectory");
+
+		String uploadedAssetStorageBucketSubDirectory = lookupProperty("aws.s3.uploadedAssetStorageBucketSubDirectory");
+		if (!Strings.isNullOrEmpty(uploadedAssetStorageBucketSubDirectory)) {
+			s3config.setUploadedAssetStorageBucketSubDirectory(uploadedAssetStorageBucketSubDirectory);
+		}
 
 		final String staticAssetFileExtensionPatternStr = lookupProperty("aws.s3.staticAssetFileExtensionPattern");
 		if (!Strings.isNullOrEmpty(staticAssetFileExtensionPatternStr)) {
