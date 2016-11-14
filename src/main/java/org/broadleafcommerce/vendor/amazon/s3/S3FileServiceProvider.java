@@ -28,6 +28,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import javax.annotation.Resource;
 
@@ -413,19 +414,31 @@ public class S3FileServiceProvider implements FileServiceProvider {
     private Integer lastExtensionIdx(String fileName) {
         return (fileName != null) ? fileName.lastIndexOf('.') : -1;
     }
-    
-    public void moveObject(String srcKey, String destKey) {
-        S3Configuration s3config = s3ConfigurationService.lookupS3Configuration();
-        AmazonS3Client s3Client = getAmazonS3Client(s3config);
-        String bucketName = s3config.getDefaultBucketName();
+
+    public void moveObject(String srcKey, String destKey, boolean checkAndSucceedIfAlreadyMoved) {
+        final S3Configuration s3config = s3ConfigurationService.lookupS3Configuration();
+        final AmazonS3Client s3Client = getAmazonS3Client(s3config);
+        final String bucketName = s3config.getDefaultBucketName();
         // copy
-        CopyObjectRequest objToCopy = new CopyObjectRequest(bucketName, srcKey, bucketName, destKey);
+        final CopyObjectRequest objToCopy = new CopyObjectRequest(bucketName, srcKey, bucketName, destKey);
         if ((s3config.getStaticAssetFileExtensionPattern() != null)
                 && s3config.getStaticAssetFileExtensionPattern().matcher(getExtension(destKey)).matches()) {
             objToCopy.setCannedAccessControlList(CannedAccessControlList.PublicRead);
         }
         try {
         	s3Client.copyObject(objToCopy);
+        } catch (AmazonS3Exception s3e) {
+        	if (s3e.getStatusCode() == 404 && checkAndSucceedIfAlreadyMoved) {
+        		// it's not in the srcKey. Check if something is at the destKey
+        		if (s3Client.doesObjectExist(bucketName, destKey)) {
+        			final String msg = String.format("src(%s) doesn't exist but dest(%s) does, so assuming success", srcKey, destKey); 
+        			LOG.warn(msg);
+        			return;
+        		} else {
+        			final String msg = String.format("neither src(%s) or dest(%s) exist", srcKey, destKey); 
+                	throw new RuntimeException(msg);
+        		}
+        	}
         } catch (AmazonClientException e) {
         	throw new RuntimeException("Unable to copy object from: " + srcKey + " to: " + destKey, e);
         }
