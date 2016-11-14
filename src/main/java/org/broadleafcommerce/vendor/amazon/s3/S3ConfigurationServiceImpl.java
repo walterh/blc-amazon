@@ -58,6 +58,11 @@ public class S3ConfigurationServiceImpl implements S3ConfigurationService {
 		s3config.setEndpointURI(lookupProperty("aws.s3.endpointURI"));
 		s3config.setBucketSubDirectory(lookupProperty("aws.s3.bucketSubDirectory"));
 
+		String uploadedAssetStorageBucketSubDirectory = lookupProperty("aws.s3.uploadedAssetStorageBucketSubDirectory");
+		if (!Strings.isNullOrEmpty(uploadedAssetStorageBucketSubDirectory)) {
+			s3config.setUploadedAssetStorageBucketSubDirectory(uploadedAssetStorageBucketSubDirectory);
+		}
+
 		final String staticAssetFileExtensionPatternStr = lookupProperty("aws.s3.staticAssetFileExtensionPattern");
 		if (!Strings.isNullOrEmpty(staticAssetFileExtensionPatternStr)) {
 			s3config.setStaticAssetFileExtensionPattern(staticAssetFileExtensionPatternStr);
@@ -66,7 +71,7 @@ public class S3ConfigurationServiceImpl implements S3ConfigurationService {
 		final boolean accessSecretKeyBlank = StringUtils.isEmpty(s3config.getAwsSecretKey());
 		final boolean accessKeyIdBlank = StringUtils.isEmpty(s3config.getGetAWSAccessKeyId());
 		final boolean bucketNameBlank = StringUtils.isEmpty(s3config.getDefaultBucketName());
-		final Region region = s3config.getDefaultBucketRegion();		
+		final Region region = s3config.getDefaultBucketRegion();	
         final long ts2 = System.currentTimeMillis();
         
 		if (LOG.isTraceEnabled()) {
