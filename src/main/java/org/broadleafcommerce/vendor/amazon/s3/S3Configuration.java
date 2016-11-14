@@ -41,6 +41,7 @@ public class S3Configuration {
     private String endpointURI;
     private String bucketSubDirectory;
     private Pattern staticAssetFileExtensionPattern;
+    private String uploadedAssetStorageBucketSubDirectory;
 
     public String getAwsSecretKey() {
         return awsSecretKey;
@@ -102,6 +103,14 @@ public class S3Configuration {
     	this.staticAssetFileExtensionPattern = Pattern.compile(staticAssetFileExtensionPatternStr);
     }
     
+	public String getUploadedAssetStorageBucketSubDirectory() {
+		return uploadedAssetStorageBucketSubDirectory;
+	}
+ 
+	public void setUploadedAssetStorageBucketSubDirectory(String uploadedAssetStorageBucketSubDirectory) {
+		this.uploadedAssetStorageBucketSubDirectory = uploadedAssetStorageBucketSubDirectory;
+	}
+
 
     @Override
     public int hashCode() {
