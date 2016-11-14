@@ -111,7 +111,6 @@ public class S3Configuration {
 		this.uploadedAssetStorageBucketSubDirectory = uploadedAssetStorageBucketSubDirectory;
 	}
 
-
     @Override
     public int hashCode() {
         return new HashCodeBuilder()
@@ -155,5 +154,5 @@ public class S3Configuration {
     			}
     		}
     	}
-    }    
+    }
 }

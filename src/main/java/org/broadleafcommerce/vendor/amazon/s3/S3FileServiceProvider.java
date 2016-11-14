@@ -414,14 +414,13 @@ public class S3FileServiceProvider implements FileServiceProvider {
     private Integer lastExtensionIdx(String fileName) {
         return (fileName != null) ? fileName.lastIndexOf('.') : -1;
     }
-    
+
     public void moveObject(String srcKey, String destKey, boolean checkAndSucceedIfAlreadyMoved) {
         final S3Configuration s3config = s3ConfigurationService.lookupS3Configuration();
         final AmazonS3Client s3Client = getAmazonS3Client(s3config);
         final String bucketName = s3config.getDefaultBucketName();
         // copy
         final CopyObjectRequest objToCopy = new CopyObjectRequest(bucketName, srcKey, bucketName, destKey);
-        
         if ((s3config.getStaticAssetFileExtensionPattern() != null)
                 && s3config.getStaticAssetFileExtensionPattern().matcher(getExtension(destKey)).matches()) {
             objToCopy.setCannedAccessControlList(CannedAccessControlList.PublicRead);
@@ -449,8 +448,7 @@ public class S3FileServiceProvider implements FileServiceProvider {
         try {
         	s3Client.deleteObject(objToDelete);
         } catch (AmazonClientException e) {
-        	//throw new RuntimeException("Moving objects to production folder but unable to delete old object: " + srcKey, e);
-        	LOG.error("Moving objects to production folder but unable to delete old object: " + srcKey, e);
+        	throw new RuntimeException("Moving objects to production folder but unable to delete old object: " + srcKey, e);
         }
     }
 
@@ -476,10 +474,8 @@ public class S3FileServiceProvider implements FileServiceProvider {
 		try {
 			DeleteObjectsResult delObjResult = s3Client.deleteObjects(multiObjectDeleteRequest);
 			if (LOG.isTraceEnabled()) {
-				String s = listOfKeysToRemove.stream().collect(Collectors.joining(",\n\t"));
-
-				LOG.trace(String.format("Successfully deleted %d items:\n\t%s",
-						delObjResult.getDeletedObjects().size(), s));
+				LOG.trace(String.format("Successfully deleted all the %s items.\n",
+						delObjResult.getDeletedObjects().size()));
 			}
 		} catch (MultiObjectDeleteException e) {
 			if (LOG.isTraceEnabled()) {
