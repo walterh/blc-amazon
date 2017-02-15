@@ -40,6 +40,7 @@ public class S3Configuration {
     private Region defaultBucketRegion;
     private String endpointURI;
     private String bucketSubDirectory;
+    private String versionSubDirectory;
     private Pattern staticAssetFileExtensionPattern;
     private String uploadedAssetStorageBucketSubDirectory;
 
@@ -94,7 +95,15 @@ public class S3Configuration {
     public void setBucketSubDirectory(String bucketSubDirectory) {
         this.bucketSubDirectory = bucketSubDirectory;
     }
-    
+
+    public String getVersionSubDirectory() {
+        return versionSubDirectory;
+    }
+
+    public void setVersionSubDirectory(String versionSubDirectory) {
+        this.versionSubDirectory = versionSubDirectory;
+    }
+
     public Pattern getStaticAssetFileExtensionPattern() {
     	return staticAssetFileExtensionPattern;
     }

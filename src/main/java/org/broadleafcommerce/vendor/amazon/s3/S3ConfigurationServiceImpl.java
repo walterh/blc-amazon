@@ -28,6 +28,7 @@ import org.springframework.stereotype.Service;
 import com.amazonaws.regions.Region;
 import com.amazonaws.regions.RegionUtils;
 import com.google.common.base.Strings;
+import com.jcabi.manifests.Manifests;
 
 import javax.annotation.PostConstruct;
 import javax.annotation.Resource;
@@ -46,7 +47,7 @@ public class S3ConfigurationServiceImpl implements S3ConfigurationService {
 	@Resource(name = "blSystemPropertiesService")
 	protected SystemPropertiesService systemPropertiesService;
 
-	protected S3Configuration s3config;
+	protected volatile S3Configuration s3config;
 	
 	private void initS3ConfigurationImpl() {
     	final long ts1 = System.currentTimeMillis();
@@ -66,6 +67,15 @@ public class S3ConfigurationServiceImpl implements S3ConfigurationService {
 		final String staticAssetFileExtensionPatternStr = lookupProperty("aws.s3.staticAssetFileExtensionPattern");
 		if (!Strings.isNullOrEmpty(staticAssetFileExtensionPatternStr)) {
 			s3config.setStaticAssetFileExtensionPattern(staticAssetFileExtensionPatternStr);
+		}
+		
+		final String manifestVersionKey = lookupProperty("aws.s3.manifestVersionKey");
+		if (!Strings.isNullOrEmpty(manifestVersionKey)) {
+			String versionSubDirectory = Manifests.read(manifestVersionKey);
+			if (!Strings.isNullOrEmpty(versionSubDirectory)) {
+				versionSubDirectory = "dev";
+			}
+			s3config.setVersionSubDirectory(versionSubDirectory);
 		}
 
 		final boolean accessSecretKeyBlank = StringUtils.isEmpty(s3config.getAwsSecretKey());
@@ -105,8 +115,13 @@ public class S3ConfigurationServiceImpl implements S3ConfigurationService {
 
 	@Override
 	public S3Configuration lookupS3Configuration() {
+		// 2-check locking
 		if (s3config == null) {
-			initS3ConfigurationImpl(); 
+			synchronized(this) {
+				if (s3config == null) {
+					initS3ConfigurationImpl();
+				}
+			}
 		}
 		return s3config;
 	}

@@ -213,7 +213,7 @@ public class S3FileServiceProvider implements FileServiceProvider {
             final long ts2 = System.currentTimeMillis();
 
             if (meta == null || meta.getContentLength() != srcFile.length()) {
-                final PutObjectRequest put = new PutObjectRequest(s3config.getDefaultBucketName(), resourceName, srcFile);
+            	final PutObjectRequest put = new PutObjectRequest(s3config.getDefaultBucketName(), resourceName, srcFile);
 
                 if ((s3config.getStaticAssetFileExtensionPattern() != null)
                         && s3config.getStaticAssetFileExtensionPattern().matcher(getExtension(fileName)).matches()) {
@@ -339,6 +339,11 @@ public class S3FileServiceProvider implements FileServiceProvider {
             // ensure subDirectory is non-null
             baseDirectory = "";
         }
+        
+        String versionDirectory = s3config.getVersionSubDirectory();
+        if (StringUtils.isNotEmpty(versionDirectory)) {
+        	baseDirectory = FilenameUtils.concat(baseDirectory, versionDirectory);
+        }
 
         String siteSpecificResourceName = getSiteSpecificResourceName(name);
         return FilenameUtils.concat(baseDirectory, siteSpecificResourceName);
@@ -415,7 +420,23 @@ public class S3FileServiceProvider implements FileServiceProvider {
         return (fileName != null) ? fileName.lastIndexOf('.') : -1;
     }
     
+    public boolean exists(String srcKey) {
+        final S3Configuration s3config = s3ConfigurationService.lookupS3Configuration();
+        final AmazonS3Client s3Client = getAmazonS3Client(s3config);
+        final String bucketName = s3config.getDefaultBucketName();
+
+        return s3Client.doesObjectExist(bucketName, srcKey);
+    }
+    
+    public void copyObject(String srcKey, String destKey, boolean checkAndSucceedIfAlreadyMoved) {
+    	copyOrMoveObjectImpl(srcKey, destKey, false, checkAndSucceedIfAlreadyMoved);
+    }
+    
     public void moveObject(String srcKey, String destKey, boolean checkAndSucceedIfAlreadyMoved) {
+    	copyOrMoveObjectImpl(srcKey, destKey, true, checkAndSucceedIfAlreadyMoved);
+    }
+    
+    private void copyOrMoveObjectImpl(String srcKey, String destKey, boolean move, boolean checkAndSucceedIfAlreadyMoved) {
         final S3Configuration s3config = s3ConfigurationService.lookupS3Configuration();
         final AmazonS3Client s3Client = getAmazonS3Client(s3config);
         final String bucketName = s3config.getDefaultBucketName();
@@ -443,14 +464,16 @@ public class S3FileServiceProvider implements FileServiceProvider {
         } catch (AmazonClientException e) {
         	throw new RuntimeException("Unable to copy object from: " + srcKey + " to: " + destKey, e);
         }
-        
-        // delete the old ones in sandbox folder (those with srcKey)
-        DeleteObjectRequest objToDelete = new DeleteObjectRequest(bucketName, srcKey);
-        try {
-        	s3Client.deleteObject(objToDelete);
-        } catch (AmazonClientException e) {
-        	//throw new RuntimeException("Moving objects to production folder but unable to delete old object: " + srcKey, e);
-        	LOG.error("Moving objects to production folder but unable to delete old object: " + srcKey, e);
+
+        if (move) {
+	        // delete the old ones in sandbox folder (those with srcKey)
+	        DeleteObjectRequest objToDelete = new DeleteObjectRequest(bucketName, srcKey);
+	        try {
+	        	s3Client.deleteObject(objToDelete);
+	        } catch (AmazonClientException e) {
+	        	//throw new RuntimeException("Moving objects to production folder but unable to delete old object: " + srcKey, e);
+	        	LOG.error("Moving objects to production folder but unable to delete old object: " + srcKey, e);
+	        }
         }
     }
 
@@ -497,5 +520,21 @@ public class S3FileServiceProvider implements FileServiceProvider {
 			throw new RuntimeException("No. of objects failed to delete = " + e.getErrors().size(), e);
 		}
 	}
+
+	// from StreamUtils.writeStreamToStream
+    private Long writeStreamToStream(InputStream srcStream, OutputStream destStream, int blockSize) throws IOException {
+        byte[] byteBuff = new byte[blockSize];
+        int count = 0;
+        Long totalBytesWritten = 0L;
+
+        while ((count = srcStream.read(byteBuff, 0, byteBuff.length)) > 0) {
+            destStream.write(byteBuff, 0, count);
+            totalBytesWritten += count;
+        }
+
+        destStream.flush();
+
+        return totalBytesWritten;
+    }
 
 }
